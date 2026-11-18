@@ -1,0 +1,23 @@
+# data cache (downloaded by project4.data.load_spambase)
+data/
+# python
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+# LaTeX build files
+report/*.aux
+report/*.bbl
+report/*.blg
+report/*.log
+report/*.out
+report/*.toc
+report/*.synctex.gz
+report/*.fls
+report/*.fdb_latexmk
+# editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+report/main.pdf

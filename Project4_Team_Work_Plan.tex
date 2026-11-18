@@ -1,0 +1,278 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=2cm]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{booktabs,tabularx,array}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+\usepackage{xcolor}
+
+\newcolumntype{L}{>{\raggedright\arraybackslash}X}
+\newlist{todo}{itemize}{1}
+\setlist[todo]{label=$\square$,leftmargin=1.6em,itemsep=1pt,topsep=2pt}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{4pt}
+
+\title{\textbf{MAC 312 -- Project 4: Classification with Unequal Error Costs and Rejection}\\[2pt]\large Team Work Plan (6 members)}
+\date{7 November 2026}
+
+\begin{document}
+\maketitle
+
+\noindent Each of the six members owns \textbf{one theory block} (T) and \textbf{one coding block} (C) of similar size.
+The theory each person derives is implemented by \emph{someone else}, and the theory author reviews that code,
+so every formula is checked by code and every piece of code is checked against its derivation.
+
+%-------------------------------------------------------------
+\section{Split at a glance}
+
+\begin{center}
+\small
+\begin{tabularx}{\textwidth}{@{}l L L l@{}}
+\toprule
+\textbf{Member} & \textbf{Theory block} & \textbf{Coding block} & \textbf{Reviews code of} \\
+\midrule
+Member 1 & T1 Loss matrix, Bayes action, reject thresholds (Task 1) & C5 Prior-shift experiments (Task 4) & Member 6 (C1) \\
+Member 2 & T2 Gaussian generative classifiers, shared and class-specific covariance (Task 2) & C3 Logistic regression and cost-ratio sweep (Task 2) & Member 3 (C2) \\
+Member 3 & T3 Logistic regression and expected cost of a threshold rule (Task 2) & C2 Gaussian classifiers from scratch (Task 2) & Member 2 (C3) \\
+Member 4 & T4 Proper scoring rules and calibration (Task 3) & C6 Accuracy-vs-cost exhibit and inspection-cost curves (Task 5) & Member 5 (C4) \\
+Member 5 & T5 Prior-shift posterior-odds correction (Task 4) & C4 Log-loss, Brier score, reliability plots (Task 3) & Member 1 (C5) \\
+Member 6 & T6 Analytic accuracy-vs-cost model and cost/rejection curves (Task 5) & C1 Shared infrastructure: data, splits, decision module, metrics & Member 4 (C6) \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+Each member also writes the report section for their theory block, the results section for their coding block,
+and presents both. Replace ``Member 1--6'' with names once agreed.
+
+%-------------------------------------------------------------
+\section{Shared setup (agree in the first meeting)}
+
+\textbf{Application and actions.} Spam filter. Label $y=1$ means spam. Actions: $a=0$ deliver to inbox,
+$a=1$ send to spam folder, $a=r$ hold for human inspection.
+
+\textbf{Loss matrix (starting values, swept later).} Correct decisions cost $0$. Sending a real email to spam costs
+$c_{FP}=10$; delivering spam costs $c_{FN}=1$; inspection costs $c_I$ whatever the true label.
+\emph{Assumption:} the inspector always finds the true label and routes the email correctly, so no further loss follows.
+
+\begin{center}
+\begin{tabular}{lcc}
+\toprule
+Action $\backslash$ true label & $y=0$ (real email) & $y=1$ (spam) \\
+\midrule
+$a=0$ deliver & $0$ & $c_{FN}$ \\
+$a=1$ spam folder & $c_{FP}$ & $0$ \\
+$a=r$ inspect & $c_I$ & $c_I$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\textbf{Target result for T1 to prove.} With $p = P(y=1\mid x)$ the posterior expected losses are
+\[
+R(0\mid x) = c_{FN}\,p,\qquad R(1\mid x) = c_{FP}\,(1-p),\qquad R(r\mid x) = c_I .
+\]
+Deliver if $p \le \theta_0 = c_I/c_{FN}$, send to spam if $p \ge \theta_1 = 1 - c_I/c_{FP}$, inspect in between.
+The inspect band is non-empty if and only if
+\[
+c_I < \frac{c_{FP}\,c_{FN}}{c_{FP}+c_{FN}};
+\]
+otherwise the rule is a single threshold: send to spam iff $p \ge c_{FP}/(c_{FP}+c_{FN})$.
+
+\textbf{Datasets.}
+\begin{itemize}[itemsep=1pt,topsep=2pt]
+  \item \emph{Real:} UCI Spambase (4{,}601 emails, 57 features, about 39\% spam) -- matches the application.
+  \item \emph{Synthetic:} two-class Gaussian data with chosen means, covariances and class prior. Here $p(x\mid y)$ is
+        known, so the true Bayes risk can be computed and class proportions changed exactly (Task 4).
+  \item \emph{Splits:} stratified 60/20/20 train/validation/test; 20 repeated splits (seeds 0--19) for error bars.
+        The test set is never used to choose anything.
+\end{itemize}
+
+\textbf{Code rules.} Python + NumPy; models written from scratch. scikit-learn only to cross-check numbers.
+The interface below is frozen in week 1 so people can code in parallel.
+
+{\small
+\begin{verbatim}
+project4/
+  data.py        C1  load_spambase(), make_gaussian(n, pi1, mu0, mu1, S0, S1, seed),
+                     resample_to_prior(X, y, pi1_new, seed), split(X, y, seed)
+  decision.py    C1  LossMatrix(c_fp, c_fn, c_insp), thresholds(L),
+                     bayes_action(p, L) -> array of 0/1/2   (2 = inspect)
+  metrics.py     C1  confusion_with_reject(y, a), realized_loss(y, a, L),
+                     accuracy(y, a), reject_rate(a)
+  models/gaussian.py  C2  GaussianClassifier(shared_cov, reg).fit(X, y).predict_proba(X)
+  models/logistic.py  C3  LogisticRegression(l2).fit(X, y).predict_proba(X)
+  calibration.py C4  log_loss(y, p), brier(y, p), reliability_bins(y, p, n_bins)
+  experiments/   task2_cost_sweep.py (C3), task3_calibration.py (C4),
+                 task4_prior_shift.py (C5), task5_inspection.py (C6)
+  run_all.py     C1  regenerates every figure and table
+  figures/  results/
+\end{verbatim}
+}
+\texttt{predict\_proba} always returns $P(y=1\mid x)$ as a 1-D array. Every experiment script keeps its
+configuration at the top and saves its figures and CSV files.
+
+%-------------------------------------------------------------
+\section{Member briefs}
+
+Every derivation ends with a one-line statement of its assumptions. Every experiment reports means with error bars
+over the 20 splits.
+
+\subsection*{Member 1}
+\textbf{Theory T1 -- Loss matrix and Bayes action (Task 1)}
+\begin{todo}
+  \item Write the loss matrix; justify each number and the inspection assumption. One paragraph on imperfect inspection as a variant.
+  \item Derive the posterior expected loss of each of the three actions for a general $3\times 2$ loss matrix; the Bayes action is the minimiser.
+  \item Specialise to zero loss on correct decisions: derive $\theta_0,\theta_1$, the condition for the inspect band, and the single-threshold fallback.
+  \item Check that equal error costs $c$ give the classic reject rule: inspect when $\max_k P(k\mid x) < 1 - c_I/c$.
+  \item Figure: the three expected-loss lines against $p$, with both thresholds marked.
+\end{todo}
+\textbf{Code C5 -- Prior-shift experiments (Task 4)}
+\begin{todo}
+  \item Synthetic: train at prior $0.5$; deploy at priors $0.05, 0.1, 0.2, 0.4, 0.6, 0.8$ with $p(x\mid y)$ unchanged.
+  \item Spambase: simulate deployment priors by resampling test emails within each class (keeps $p(x\mid y)$ fixed).
+  \item For both models compare uncorrected, corrected (Member 5's formula) and oracle decisions; report realized loss and confusion matrices.
+  \item Plot realized loss against deployment prior. Optional: estimate unknown deployment priors with EM.
+\end{todo}
+
+\subsection*{Member 2}
+\textbf{Theory T2 -- Gaussian generative classifiers (Task 2)}
+\begin{todo}
+  \item Derive maximum-likelihood priors, means, pooled shared covariance and class-specific covariances.
+  \item Derive $P(y=1\mid x)=\sigma(a(x))$: $a(x)$ linear in $x$ for shared covariance, quadratic otherwise.
+  \item Give the decision boundary for any probability threshold $t$: $a(x)=\log\frac{t}{1-t}$, not only $t=0.5$.
+  \item State the covariance regularisation rule (shrinkage towards a scaled identity, strength chosen on validation) and why Spambase needs it.
+  \item Identify which Gaussian parameters play the role of logistic-regression weights and bias.
+\end{todo}
+\textbf{Code C3 -- Logistic regression and cost-ratio sweep (Task 2)}
+\begin{todo}
+  \item Logistic regression from scratch (Newton/IRLS) with an L2 penalty chosen on validation; cross-check with scikit-learn.
+  \item Sweep $c_{FP}/c_{FN}$ on a log grid from $1/20$ to $20$, $c_I$ fixed, for both models.
+  \item Compare accuracy-based decisions (threshold $0.5$, no inspection) with loss-minimising decisions.
+  \item Report confusion matrices (with an inspect column) at three representative ratios; plot average realized loss against cost ratio.
+\end{todo}
+
+\subsection*{Member 3}
+\textbf{Theory T3 -- Logistic regression and threshold-rule cost (Task 2)}
+\begin{todo}
+  \item Derive likelihood, cross-entropy, gradient, Hessian, convexity and the IRLS update; explain why separable data needs the L2 term.
+  \item Show accuracy-based decisions are the Bayes rule for 0--1 loss, i.e.\ threshold $0.5$.
+  \item Expected cost of a threshold rule: $\;c_{FP}\,\pi_0\,\mathrm{FPR} + c_{FN}\,\pi_1\,\mathrm{FNR} + c_I \cdot (\text{inspection rate})$.
+  \item Show threshold $0.5$ is suboptimal whenever $c_{FP}\neq c_{FN}$, and that the optimal threshold equals the Task 1 threshold only for calibrated probabilities.
+\end{todo}
+\textbf{Code C2 -- Gaussian classifiers (Task 2)}
+\begin{todo}
+  \item Implement shared- and class-specific-covariance classifiers with the T2 regularisation rule.
+  \item Compute in the log domain (Cholesky factorisation, log-sum-exp); no explicit matrix inverses.
+  \item Unit test on synthetic data: fitted posteriors match the true posteriors; cross-check with scikit-learn LDA/QDA.
+  \item Try a $\log(1+x)$ transform on Spambase features and record whether it helps the Gaussian fit.
+\end{todo}
+
+\subsection*{Member 4}
+\textbf{Theory T4 -- Scoring rules and calibration (Task 3)}
+\begin{todo}
+  \item Define log-loss and the Brier score $N^{-1}\sum_n (p_n-y_n)^2$; prove both are strictly proper.
+  \item Brier decomposition into reliability, resolution and uncertainty; define reliability diagrams and expected calibration error.
+  \item Main argument: accuracy depends only on which side of $0.5$ each $p$ falls, while the Bayes decision depends on where $p$ sits relative to $\theta_0,\theta_1$.
+  \item Build a concrete pair of models with identical labels and accuracy but different cost under $c_{FP}=10$ (e.g.\ one overconfident).
+\end{todo}
+\textbf{Code C6 -- Accuracy-vs-cost exhibit and inspection-cost curves (Task 5)}
+\begin{todo}
+  \item Exhibit a setting where the more accurate model or rule has the higher realized cost; table of accuracy and cost side by side.
+  \item Sweep $c_I$ from $0$ past the critical value; plot realized cost and rejection rate against $c_I$ with error bands, both models.
+  \item Overlay Member 6's analytic curves on the synthetic results and mark the critical $c_I$.
+  \item State when allowing inspection beats the best two-action rule.
+\end{todo}
+
+\subsection*{Member 5}
+\textbf{Theory T5 -- Prior-shift correction (Task 4)}
+\begin{todo}
+  \item Derive the corrected posterior odds:
+        $\dfrac{P'(1\mid x)}{P'(0\mid x)} = \dfrac{P(1\mid x)}{P(0\mid x)}\cdot\dfrac{\pi_1'/\pi_0'}{\pi_1/\pi_0}$.
+  \item Express it as a logit shift, as a logistic-regression intercept shift, and as a prior swap in the Gaussian model.
+  \item Show the equivalent version that keeps $p$ and moves the decision thresholds instead.
+  \item State the assumptions (label shift only, calibrated training posteriors) and what breaks if they fail.
+\end{todo}
+\textbf{Code C4 -- Probability-quality metrics (Task 3)}
+\begin{todo}
+  \item Implement log-loss (with clipping), Brier score, reliability bins (equal-width and equal-count) and expected calibration error.
+  \item Reliability diagrams with bin-count histograms for both models, on synthetic data and Spambase.
+  \item Code Member 4's same-accuracy example via temperature scaling of the logit; show accuracy fixed while realized loss changes.
+  \item Optional: calibrate on validation (Platt scaling) and show the cost drop.
+\end{todo}
+
+\subsection*{Member 6}
+\textbf{Theory T6 -- Analytic accuracy-vs-cost model (Task 5)}
+\begin{todo}
+  \item 1-D model $x\mid y \sim \mathcal{N}(\pm\mu, 1)$ with prior $\pi_1$; map probability thresholds to thresholds on $x$.
+  \item Closed-form accuracy, realized cost and rejection rate in terms of the normal CDF $\Phi$ and the costs.
+  \item Prove there is a pair of rules where the higher-accuracy one has the higher cost.
+  \item Show Bayes risk as a function of $c_I$ is increasing and concave, its slope is the rejection rate, and rejection stops at the critical $c_I$.
+\end{todo}
+\textbf{Code C1 -- Shared infrastructure (all tasks)}
+\begin{todo}
+  \item Write \texttt{data.py}, \texttt{decision.py}, \texttt{metrics.py} exactly as in Section 2; publish in week 1.
+  \item Unit test: on 10{,}000 random probabilities and loss matrices, brute-force argmin over the three actions matches the threshold rule (numerical check of T1).
+  \item Download and cache Spambase; fit preprocessing on training data only.
+  \item \texttt{run\_all.py} regenerating every figure and table; README with reproduction steps; set up the shared report template (Overleaf).
+\end{todo}
+
+%-------------------------------------------------------------
+\section{Full-credit checklist}
+
+Every requirement in the Project 4 brief, with who covers it. Nothing is submitted until every row has its evidence in the report.
+
+\begin{center}
+\small
+\begin{tabularx}{\textwidth}{@{}l L l l@{}}
+\toprule
+\textbf{Task} & \textbf{Requirement in the brief} & \textbf{Theory} & \textbf{Code / evidence} \\
+\midrule
+1 & Loss matrix incl.\ cost and outcome assumptions for inspection & M1 (T1) & table in report \\
+1 & Action minimising posterior expected loss & M1 (T1) & M6 unit test (C1) \\
+1 & Explicit thresholds (zero correct loss, positive error costs, constant $c_I$) & M1 (T1) & M6 unit test (C1) \\
+\midrule
+2 & Train Gaussian and logistic classifiers & M2, M3 & M3 (C2), M2 (C3) \\
+2 & Accuracy-based vs loss-minimising decisions over cost ratios & M3 (T3) & M2 (C3) \\
+2 & Confusion matrices and average realized loss & -- & M2 (C3), metrics M6 \\
+\midrule
+3 & Log-loss, Brier score, reliability plots & M4 (T4) & M5 (C4) \\
+3 & Why accurate labels do not guarantee good decisions for every loss & M4 (T4) & M5 demo (C4) \\
+\midrule
+4 & Change deployment proportions with $p(x\mid y)$ fixed & -- & M1 (C5) \\
+4 & Derive posterior-odds correction for known priors & M5 (T5) & -- \\
+4 & Evaluate corrected vs uncorrected decisions & M5 (T5) & M1 (C5) \\
+\midrule
+5 & Setting where higher accuracy comes with higher cost & M6 (T6) & M4 (C6) \\
+5 & Plot realized cost and rejection rate vs inspection cost & M6 (T6) & M4 (C6) \\
+5 & When allowing rejection improves the system & M6 (T6) & M4 (C6) \\
+\bottomrule
+\end{tabularx}
+\end{center}
+
+%-------------------------------------------------------------
+\section{Phases and integration rules}
+
+No deadline is fixed here; stretch or compress the phases to fit the submission date.
+\begin{enumerate}[itemsep=2pt]
+  \item \textbf{Phase 1 -- Setup (week 1).} Agree Section 2. M6 publishes \texttt{data.py}, \texttt{decision.py}, \texttt{metrics.py}.
+        T1, T2, T3 drafts written. \emph{Gate:} interfaces frozen, unit tests pass.
+  \item \textbf{Phase 2 -- Models (week 2).} C2 and C3 implemented and reviewed by M2/M3. T4, T5, T6 drafts written.
+        \emph{Gate:} both models pass unit tests on synthetic data.
+  \item \textbf{Phase 3 -- Experiments (week 3).} C3--C6 experiments, figures and tables. Each theory author reviews the code implementing their derivation.
+        \emph{Gate:} \texttt{run\_all.py} reproduces every figure from scratch.
+  \item \textbf{Phase 4 -- Report and presentation (final days).} Assemble the report, one notation pass, checklist in Section 4 ticked, slides.
+\end{enumerate}
+
+\textbf{Integration rules.}
+\begin{itemize}[itemsep=1pt,topsep=2pt]
+  \item One shared Git repository; each member works on their own branch and merges through a pull request approved by their named reviewer (Section 1).
+  \item One notation sheet (Section 2); no section introduces its own symbols for the same quantities.
+  \item Figures and tables come only from scripts, never pasted by hand.
+  \item Report order: 1 Introduction and setup (M1, M6); 2 Decision theory (T1); 3 Models (T2, T3); 4 Task 2 results (C3);
+        5 Calibration (T4, C4); 6 Prior shift (T5, C5); 7 Accuracy vs cost and rejection (T6, C6);
+        8 Conclusion (one paragraph per member); Appendix: code listing and contribution statement.
+\end{itemize}
+
+\textbf{Reading:} Bishop, \emph{Pattern Recognition and Machine Learning}, \S1.5 (decision theory, reject option, prior compensation),
+\S4.2 (generative classifiers), \S4.3.2--4.3.3 (logistic regression, IRLS); course notes \emph{Linear Classification} 05 and 06.
+
+\end{document}
