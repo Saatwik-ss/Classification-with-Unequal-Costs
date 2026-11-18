@@ -24,6 +24,6 @@ def apply_style():
 def save(fig, path_stem):
     """Save as PDF (for LaTeX) and PNG (for slides / notes)."""
     path_stem.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(path_stem.with_suffix(".pdf"))
+    fig.savefig(path_stem.with_suffix(".pdf"), metadata={"CreationDate": None})  # reproducible bytes
     fig.savefig(path_stem.with_suffix(".png"))
     plt.close(fig)
