@@ -1,0 +1,52 @@
+\section{Introduction and setup}
+
+\subsection{Introduction}
+% TODO (Member 1): problem statement, the spam-filter application, why
+% accuracy is the wrong target, and a roadmap of Sections 2-7.
+\emph{To be written by Member 1.}
+
+\subsection{Experimental setup}
+% Member 6 (C1)
+
+\paragraph{Application, actions and losses.}
+We filter email. Label $y=1$ means spam and $y=0$ a real email. For each email the filter
+chooses one of three actions: deliver to the inbox ($a=0$), send to the spam folder ($a=1$), or
+hold for human inspection ($a=r$; coded as \texttt{2}). Correct decisions cost nothing. Sending
+a real email to spam costs $\cfp$, delivering spam costs $\cfn$, and inspection costs $\ci$
+whatever the label. We assume the inspector always finds the true label and routes the email
+correctly, so no further loss follows an inspection. Unless stated otherwise $\cfp=10$ and $\cfn=1$;
+all experiments sweep $\ci$ or the ratio $\cfp/\cfn$.
+
+\paragraph{Data.}
+\emph{Spambase}~\cite{spambase} has $4{,}601$ emails, of which $1{,}813$ ($39.4\%$) are spam, and
+57 non-negative features: 48 word frequencies, 6 character frequencies and 3 run-length
+statistics of capital letters. The features are heavily skewed and $77\%$ of all feature values are
+exactly zero, which matters for the Gaussian models (Section~\ref{sec:models}).
+The \emph{synthetic} data are two-class Gaussian samples with chosen means, covariances and
+prior $\pio$. Because $p(x\mid y)$ is known we can compute the exact posterior and Bayes risk,
+and change the class proportions exactly (Section~6). Section~7 also uses a one-dimensional
+special case with closed-form answers.
+
+\paragraph{Splits and error bars.}
+Each data set is split into stratified $60/20/20$ train, validation and test parts
+($2{,}761/921/919$ emails for Spambase, each with the overall spam rate). Models are fitted on the
+training part. Every choice (regularisation strength, temperature, anything else) is made on the
+validation part. The test part is used only to report results. We repeat everything over 20 splits
+(seeds $0$--$19$) and report the mean with a standard-error bar.
+
+\paragraph{Preprocessing.}
+Standardisation (zero mean, unit variance), optionally after the transform $\log(1+x)$, uses
+statistics of the training part only and is then applied unchanged to validation and test data.
+
+\paragraph{Prior shift.}
+To simulate a deployment prior $\pio'$ we resample test emails \emph{within each class}, so
+$p(x\mid y)$ is unchanged and only the label proportions move. By default we sample without
+replacement and keep the largest set the data allow.
+
+\paragraph{Code and reproducibility.}
+All models are written from scratch in Python with NumPy; scikit-learn is used only to cross-check
+numbers. The shared modules \texttt{data.py}, \texttt{decision.py} and \texttt{metrics.py} implement
+the interface above. A unit test checks the decision rule of Section~2 against a brute-force
+minimisation of the posterior expected loss on $10{,}000$ random posteriors and loss matrices,
+covering cases both with and without an inspect band. The command
+\texttt{python -m project4.run\_all} regenerates every figure and table in this report from scratch.

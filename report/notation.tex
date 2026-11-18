@@ -1,0 +1,20 @@
+% Shared notation sheet. Every section uses these macros; nobody defines
+% their own symbol for the same quantity.
+\newcommand{\cfp}{c_{FP}}          % real email sent to spam
+\newcommand{\cfn}{c_{FN}}          % spam delivered
+\newcommand{\ci}{c_I}              % inspection cost
+\newcommand{\cstar}{c^{\ast}}      % critical inspection cost cfp*cfn/(cfp+cfn)
+\newcommand{\post}{p}              % P(y=1 | x)
+\newcommand{\thz}{\theta_0}        % deliver below
+\newcommand{\tho}{\theta_1}        % spam above
+\newcommand{\tstar}{t^{\ast}}      % two-action threshold cfp/(cfp+cfn)
+\newcommand{\piz}{\pi_0}
+\newcommand{\pio}{\pi_1}
+\newcommand{\rej}{\rho}            % rejection (inspection) rate
+\newcommand{\Rstar}{R^{\ast}}      % Bayes risk
+\newcommand{\Rtwo}{R_2}            % best risk without inspection
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\Prob}{\mathbb{P}}
+\newcommand{\sigm}{\sigma}         % logistic sigmoid
+\DeclareMathOperator{\logit}{logit}
+% Actions: a = 0 deliver, a = 1 spam folder, a = r inspect (code: 2).
