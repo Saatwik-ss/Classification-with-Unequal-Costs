@@ -17,6 +17,26 @@ The report in `report/` includes them directly. Build it with
 `cd report && pdflatex main && bibtex main && pdflatex main && pdflatex main`,
 or import the repo into Overleaf with its GitHub sync.
 
+### Reproduce Member 4's results
+
+Run `python -m project4.run_all --only task5_inspection` to fit the two classifiers on
+Spambase and the synthetic Gaussian data. The experiment writes the split-level counts and
+paired savings to `project4/results/c6_per_split.csv`, means and standard errors to
+`project4/results/c6_summary.csv`, and the two figures and LaTeX tables used in Section 7.
+Run `python -m pytest -q` after generating the results to include the cached Spambase check.
+The theory and empirical results appear in Sections 5 and 7. The five presentation slides
+are in [the Member 4 deck](report/member4_slides.pptx).
+
+The [Member 4 audit](tests/test_member4.py) checks the score identities, the 20-email
+example, and the analytic curves by numerical integration. It also refits all 80
+dataset/model/split combinations, checks the recorded counts by comparing conditional
+action costs directly, and reconstructs every reported mean and standard error from the
+split-level counts.
+
+The branch includes the team models and their original tests at pinned revisions:
+[Member 3's Gaussian implementation](https://github.com/tanishk1810/Classification-with-Unequal-Costs/commit/e66ab2ccde41b3374e04409b689822279642adc7)
+and [Member 2's logistic implementation](https://github.com/MrTin-tin/Classification-with-Unequal-Costs/commit/2969de420042acb897c9a085791219063142f0d1).
+
 ## Layout and owners
 
 ```
