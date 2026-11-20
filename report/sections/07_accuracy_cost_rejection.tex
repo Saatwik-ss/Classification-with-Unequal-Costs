@@ -269,12 +269,18 @@ models take only automatic actions, so each cost curve levels off at its own bas
 At $\ci=0.3$ theory predicts cost $0.179$ and rejection $0.416$. The fitted Gaussian
 gives $0.181$ and $0.417$ (Figure~\ref{fig:c6-synthetic}). On Spambase the logistic fit
 saves $0.100$ per email while inspecting $24.1\%$ (Figure~\ref{fig:c6-spambase} and Table~\ref{tab:c6-savings}).
-At zero price, finite-precision fitted probabilities of exactly zero or one tie the cost of
-inspection with an automatic action. The project rule takes that automatic action, explaining
-the small residual empirical cost on Spambase even with free inspection.
+At zero price, both models inspected every test email on both datasets, with zero realized
+cost in every split. A finite fitted log-odds score implies a probability strictly between
+zero and one. Comparing scores directly with the log-odds thresholds preserves this fact
+even for forecasts that would round to an endpoint in probability space.
 
 For a true posterior the gain over the best two-action rule is
 $\Rtwo-\Rstar(\ci)=\E[(m(X)-\ci)_+]$, where $u_+=\max(u,0)$.
 It is strictly positive exactly when $\Prob(m(X)>\ci)>0$. Every nonempty inspection
 band has positive probability in the Gaussian model. On Spambase the true posterior is unknown,
 so the table compares the fitted policies on observed labels.
+
+\paragraph{Sensitivity to repeated feature vectors.}
+About $9.8\%$ of Spambase test rows had an exact 57-feature match in their training split.
+Excluding those rows preserved the conclusion: inspection reduced logistic cost from
+$0.264$ to $0.160$ and Gaussian cost from $0.291$ to $0.173$ per email.

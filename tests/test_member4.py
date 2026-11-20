@@ -25,7 +25,7 @@ def test_report_temperature_example():
     assert sharp == pytest.approx(np.repeat([1 / 65, 64 / 65], 10))
     assert np.array_equal(q >= 0.5, sharp >= 0.5)
     for forecast, expected_cost in [(q, 0.25), (sharp, 1.10)]:
-        rows = [r for r in evaluate(y, forecast) if r["c_insp"] == DEFAULT_LOSS.c_insp]
+        rows = [r for r in evaluate(y, logit(forecast)) if r["c_insp"] == DEFAULT_LOSS.c_insp]
         assert next(r for r in rows if r["rule"] == "accuracy")["accuracy"] == 0.8
         assert next(r for r in rows if r["rule"] == "inspect")["cost"] == pytest.approx(expected_cost)
 
@@ -54,12 +54,20 @@ def test_expected_score_regrets_and_brier_grouping():
 
 
 def test_c6_ties_and_free_inspection():
-    q = np.array([0, 0.3, 0.5, 0.97, 1])
+    # Include deterministic endpoints and ties at the positive-price log-odds cutoffs.
+    logits = np.array([-np.inf, np.log(0.3) - np.log(0.7), 0, np.log(9.7) - np.log(0.3), np.inf])
     y = np.array([1, 1, 0, 0, 0])
-    rows = {r["c_insp"]: r for r in evaluate(y, q) if r["rule"] == "inspect"}
+    rows = {r["c_insp"]: r for r in evaluate(y, logits) if r["rule"] == "inspect"}
     assert (rows[0]["inspected"], rows[0]["cost"]) == (3, 11 / 5)
     assert (rows[0.3]["fp"], rows[0.3]["fn"], rows[0.3]["inspected"]) == (2, 2, 1)
     assert rows[10 / 11]["inspected"] == 0
+
+
+def test_free_inspection_for_extreme_finite_logits():
+    logits = np.array([-1000., -50., 50., 1000.])
+    rows = evaluate([1, 1, 0, 0], logits)
+    free = next(r for r in rows if r["rule"] == "inspect" and r["c_insp"] == 0)
+    assert free["inspected"] == 4 and free["cost"] == 0
 
 
 def test_synthetic_overlay_matches_integrated_class_densities():
@@ -154,15 +162,19 @@ def test_saved_policies_against_refitted_conditional_loss_argmin(dataset):
         assert len(penalties) == 1
         penalty = penalties.pop()
         fit = GaussianClassifier(reg=penalty) if model == "Gaussian" else LogisticRegression(l2=penalty)
-        p = fit.fit(Z[train], y[train]).predict_proba(Z[test])
+        z = fit.fit(Z[train], y[train]).decision_function(Z[test])
+        log_deliver = -np.logaddexp(0, -z)
+        log_spam = math.log(10) - np.logaddexp(0, z)
         for r in rows:
             if r["rule"] == "accuracy":
-                actions = p >= 0.5
+                actions = z >= 0
             elif r["rule"] == "two_action":
-                actions = p >= 10 * (1 - p)
+                actions = log_deliver >= log_spam
             else:
-                costs = np.column_stack((p, 10 * (1 - p), np.full_like(p, float(r["c_insp"]))))
-                actions = costs.argmin(axis=1)
+                price = float(r["c_insp"])
+                log_review = math.log(price) if price else -math.inf
+                log_costs = np.column_stack((log_deliver, log_spam, np.full_like(z, log_review)))
+                actions = log_costs.argmin(axis=1)
             counts = (np.count_nonzero((actions == 1) & (y[test] == 0)),
                       np.count_nonzero((actions == 0) & (y[test] == 1)),
                       np.count_nonzero(actions == 2))

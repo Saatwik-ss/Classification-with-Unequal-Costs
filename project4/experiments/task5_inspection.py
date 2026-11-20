@@ -7,7 +7,7 @@ import numpy as np
 from project4 import data, metrics
 from project4.analytic import GaussianModel1D
 from project4.config import DEFAULT_LOSS, FIGURES_DIR, RESULTS_DIR, SEEDS, T6_MU, T6_PI1
-from project4.decision import bayes_action, threshold_action
+from project4.decision import band_action, threshold_action
 from project4.models.gaussian import select_reg
 from project4.models.logistic import LogisticRegression
 from project4.plotting import COLORS, INK_MUTED, apply_style, plt, save
@@ -39,9 +39,9 @@ def fit_models(X_tr, y_tr, X_va, y_va):
     yield "Logistic", best_l2, best_model
 
 
-def evaluate(y, p):
-    """Compare every policy on the same vector of held-out predictions."""
-    baseline = threshold_action(p, DEFAULT_LOSS.two_action_threshold)
+def evaluate(y, logits):
+    """Compare policies on held-out posterior log-odds before sigmoid rounding."""
+    baseline = threshold_action(logits, np.log(DEFAULT_LOSS.c_fp) - np.log(DEFAULT_LOSS.c_fn))
     base_cost = metrics.realized_loss(y, baseline, DEFAULT_LOSS)
 
     def record(rule, actions, loss):
@@ -53,11 +53,20 @@ def evaluate(y, p):
                     saving=base_cost - cost,
                     accuracy=metrics.accuracy(y, actions) if rule != "inspect" else None)
 
-    yield record("accuracy", threshold_action(p, 0.5), DEFAULT_LOSS)
+    yield record("accuracy", threshold_action(logits, 0.0), DEFAULT_LOSS)
     yield record("two_action", baseline, DEFAULT_LOSS)
     for c_insp in INSPECTION_COSTS:
         loss = DEFAULT_LOSS.with_c_insp(c_insp)
-        yield record("inspect", bayes_action(p, loss), loss)
+        if loss.has_reject_band:
+            # Odds at the band edges are c_I/(c_FN-c_I) and (c_FP-c_I)/c_I.
+            # Free inspection gives an open band over all finite log-odds.
+            log_price = np.log(c_insp) if c_insp > 0 else -np.inf
+            lower = log_price - np.log(loss.c_fn - c_insp)
+            upper = np.log(loss.c_fp - c_insp) - log_price
+            actions = band_action(logits, lower, upper)
+        else:
+            actions = baseline
+        yield record("inspect", actions, loss)
 
 
 def run():
@@ -72,10 +81,10 @@ def run():
                 X, y = spambase
             split = data.preprocess(data.split(X, y, seed))
             for name, penalty, model in fit_models(split.X_tr, split.y_tr, split.X_va, split.y_va):
-                p = model.predict_proba(split.X_te)
-                if p.shape != split.y_te.shape or not np.all((p >= 0) & (p <= 1)):
-                    raise ValueError(f"Invalid posterior from {name} on {dataset}, seed {seed}")
-                for row in evaluate(split.y_te, p):
+                logits = model.decision_function(split.X_te)
+                if logits.shape != split.y_te.shape or not np.isfinite(logits).all():
+                    raise ValueError(f"Invalid log-odds from {name} on {dataset}, seed {seed}")
+                for row in evaluate(split.y_te, logits):
                     rows.append(dict(dataset=dataset, seed=seed, model=name, penalty=penalty, **row))
     return rows
 

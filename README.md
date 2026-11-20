@@ -25,7 +25,8 @@ paired savings to `project4/results/c6_per_split.csv`, means and standard errors
 `project4/results/c6_summary.csv`, and the two figures and LaTeX tables used in Section 7.
 Run `python -m pytest -q` after generating the results to include the cached Spambase check.
 The theory and empirical results appear in Sections 5 and 7. The five presentation slides
-are in [the Member 4 deck](report/member4_slides.pptx).
+are in [the Member 4 deck](report/member4_slides.pptx). The appendix includes the
+experiment's full Python source directly from the file at report build time.
 
 The [Member 4 audit](tests/test_member4.py) checks the score identities, the 20-email
 example, and the analytic curves by numerical integration. It also refits all 80
