@@ -10,6 +10,7 @@ import time
 import traceback
 
 EXPERIMENTS = (
+    ("t5_prior_correction", "M5  T5 prior-shift correction figure"),
     ("t6_analytic", "M6  T6 analytic curves and rule table"),
     ("task2_cost_sweep", "M2  C3 logistic regression and cost-ratio sweep"),
     ("task3_calibration", "M5  C4 log-loss, Brier, reliability"),
