@@ -18,9 +18,9 @@
 A classifier that outputs probabilities can be wrong in two different ways. It can put an email on the
 wrong side of $0.5$, which accuracy measures. It can also attach the wrong number to an email, for
 example saying $0.6$ when emails like it are spam $90\%$ of the time. The Bayes rule of
-Section~\ref{sec:decision} compares $\post$ with $\thz=0.3$ and $\tho=0.97$, not with $0.5$, so it is the
-second kind of error that drives the cost. This section measures the quality of the probabilities
-themselves.
+Section~\ref{sec:decision} compares $\post$ with $\thz=0.3$ and $\tho=0.97$, not with $0.5$, so the second
+kind of error also costs money: two filters with the same labels can still make different decisions. This
+section measures the quality of the probabilities themselves.
 
 \paragraph{What we measure.}
 On the test part of each split we compute four probability scores:
@@ -33,7 +33,8 @@ On the test part of each split we compute four probability scores:
   \item \emph{Reliability diagram}: sort the predictions into $10$ bins and plot, for each bin, the average
         predicted $\post$ against the fraction of those emails that really are spam. A calibrated model puts
         every point on the diagonal. We use equal-width bins $[0,0.1),[0.1,0.2),\dots$ and equal-count bins
-        (each holds a tenth of the emails, so no bin is nearly empty).
+        (each holds about a tenth of the emails, so no bin is nearly empty; equal values of $\post$ are always
+        kept in the same bin).
   \item \emph{Expected calibration error}, $\mathrm{ECE} = \sum_b \frac{n_b}{N}\,
         \big|\bar y_b - \bar\post_b\big|$: the gap between observed and predicted spam rates in each bin,
         weighted by the bin's share of the emails.
@@ -46,7 +47,7 @@ inspects.
 The \emph{synthetic} data are $4{,}601$ points (the size of Spambase) from two 2-D Gaussian classes with a
 shared covariance, means $(0,0)$ and $(1.5,1)$, and $\pio=0.4$. Both models are correctly specified here,
 so they should be calibrated. This is a check of the code, and the exact posterior gives a reference.
-On \emph{Spambase} the features are transformed by $\log(1+x)$ and standardised (Section~1). The Gaussian
+On \emph{Spambase} the features are transformed by $\log(1+x)$ and standardised, as described in the experimental setup. The Gaussian
 model uses one shared covariance. The covariance shrinkage of the Gaussian model and the L2 strength of
 logistic regression are chosen on the validation part by \emph{log-loss}, because we want good
 probabilities, not only good labels. All numbers are means over the 20 splits with standard errors
@@ -118,6 +119,10 @@ over-confidence ($0.053$ against $0.050$): a confident mistake costs at most $1$
 $-\log\post$ grows without bound. The lesson is that two models with identical accuracy can have very
 different costs, and only a probability score can tell them apart.
 
+Close to $T=1$ the picture is less clear-cut. The cost is lowest at $T\approx1.2$ ($0.117$ against $0.124$ at
+$T=1$), where a few more emails are inspected, and log-loss is lowest at $T\approx1.1$. So making the fitted
+model slightly less confident would help a little. Platt scaling, below, finds a gain of the same size.
+
 \begin{table}[ht]
 \centering\small\setlength{\tabcolsep}{4pt}
 \input{\resultsdir/c4_temperature.tex}
@@ -131,8 +136,8 @@ $\ci=0.3$.}
 \centering
 \includegraphics[width=\linewidth]{c4_temperature.pdf}
 \caption{Accuracy, log-loss, realized loss and inspection rate of the logistic model on Spambase as its
-temperature changes (bands: $\pm$ one standard error over 20 splits). Accuracy is flat, while log-loss and
-cost both rise as the model becomes over- or under-confident.}
+temperature changes (bands: $\pm$ one standard error over 20 splits). Accuracy is flat. Log-loss and cost
+rise clearly once $T$ is far from $1$; both are lowest slightly above $T=1$.}
 \label{fig:c4-temp}
 \end{figure}
 
@@ -152,7 +157,9 @@ Platt scaling changes nothing. Because $B$ moves the point where $\post'=0.5$, a
 \begin{assumptions}
 Test emails come from the same distribution as the training and validation emails (no prior shift; that
 is Section~\ref{sec:prior-shift}). ECE depends on the number of bins and has a positive bias on small
-test sets. Platt scaling assumes that a straight-line correction of the log-odds is enough.
+test sets. Platt scaling assumes that a straight-line correction of the log-odds is enough. It is fitted on
+the same validation part that chose the hyperparameters, so its gain may be slightly optimistic; the test
+part is never used to choose anything.
 \end{assumptions}
 
 \begin{sloppypar}
@@ -162,7 +169,8 @@ The unit tests in \texttt{tests/test\_calibration.py} check the following:
 \begin{itemize}[itemsep=1pt,topsep=2pt]
   \item the log-loss on the worked example of the lecture notes;
   \item log-loss and Brier score against scikit-learn;
-  \item the reliability bins on a small example worked by hand;
+  \item the reliability bins on a small example worked by hand, and that equal values of $\post$ are never
+        split between bins;
   \item that ECE is near $0$ for data that are calibrated by construction, and large after over-confident
         scaling;
   \item that on calibrated data no temperature beats $T=1$ for either score (both are proper scoring

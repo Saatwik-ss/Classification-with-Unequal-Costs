@@ -20,6 +20,7 @@ are used when they exist. Until then scikit-learn stand-ins are used so the
 pipeline runs; the outputs then say "PREVIEW" and must be regenerated.
 """
 import csv
+import importlib
 
 import numpy as np
 
@@ -76,20 +77,34 @@ class _SkLogistic:
         return self.m.predict_proba(X)[:, 1]
 
 
-def get_models():
-    """{name: (factory(hyperparameter), grid)} and a flag saying whether stand-ins are used."""
+def _team_class(module, cls):
+    """The team's model class, or None if its file does not exist yet.
+
+    Only a missing module falls back to a stand-in; any other import error
+    (a bug inside the team's file) is raised so it cannot go unnoticed.
+    """
+    name = f"project4.models.{module}"
     try:
-        from project4.models.gaussian import GaussianClassifier
-        from project4.models.logistic import LogisticRegression
-        gauss = lambda reg: GaussianClassifier(shared_cov=GAUSS_SHARED_COV, reg=reg)  # noqa: E731
-        logi = lambda l2: LogisticRegression(l2=l2)  # noqa: E731
-        preview = False
-    except ImportError:
-        print("   PREVIEW: team models not found, using scikit-learn stand-ins")
+        return getattr(importlib.import_module(name), cls)
+    except ModuleNotFoundError as e:
+        if e.name != name:
+            raise
+        return None
+
+
+def get_models():
+    """{name: (factory(hyperparameter), grid)} and a flag saying whether any stand-in is used."""
+    Gaussian = _team_class("gaussian", "GaussianClassifier")
+    Logistic = _team_class("logistic", "LogisticRegression")
+    if Gaussian is not None:
+        gauss = lambda reg: Gaussian(shared_cov=GAUSS_SHARED_COV, reg=reg)  # noqa: E731
+    else:
         gauss = lambda reg: _SkGaussian(GAUSS_SHARED_COV, reg)  # noqa: E731
-        logi = lambda l2: _SkLogistic(l2)  # noqa: E731
-        preview = True
-    return {"Gaussian": (gauss, GAUSS_REG_GRID), "Logistic": (logi, LOGISTIC_L2_GRID)}, preview
+    logi = (lambda l2: Logistic(l2=l2)) if Logistic is not None else (lambda l2: _SkLogistic(l2))  # noqa: E731
+    missing = [m for m, c in (("gaussian.py", Gaussian), ("logistic.py", Logistic)) if c is None]
+    if missing:
+        print(f"   PREVIEW: {', '.join(missing)} not found, using scikit-learn stand-ins")
+    return {"Gaussian": (gauss, GAUSS_REG_GRID), "Logistic": (logi, LOGISTIC_L2_GRID)}, bool(missing)
 
 
 def fit_on_validation(factory, grid, s):
@@ -182,6 +197,14 @@ def _pm(mean, se, digits=3):
     return f"{mean:.{digits}f}\\,{{\\scriptsize$\\pm${se:.{digits}f}}}"
 
 
+def _preview_row(preview, ncols):
+    """A visible table line while the scikit-learn stand-ins are in use."""
+    if not preview:
+        return []
+    return [rf"\multicolumn{{{ncols}}}{{l}}{{\scriptsize\textit{{PREVIEW: scikit-learn stand-in models;"
+            r" regenerate after the team models are merged.}} \\"]
+
+
 def write_scores(scores, preview):
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     rows = [{"data": d, "model": m, **summarise(v)} for (d, m), v in scores.items()]
@@ -200,9 +223,8 @@ def write_scores(scores, preview):
         data = r["data"].capitalize() if r["data"] != last else ""
         last = r["data"]
         lines.append(f"{data} & {r['model']} & " + " & ".join(_pm(r[c], r[c + '_se']) for c in cols) + r" \\")
-    lines += [r"\bottomrule", r"\end{tabular}"]
-    if preview:
-        lines.insert(0, "% PREVIEW: scikit-learn stand-in models; regenerate after C2/C3 are merged.")
+    lines.append(r"\bottomrule")
+    lines += _preview_row(preview, 8) + [r"\end{tabular}"]
     (RESULTS_DIR / "c4_scores.tex").write_text("\n".join(lines) + "\n")
     return rows
 
@@ -222,9 +244,8 @@ def write_temperature(temp, preview):
         if any(np.isclose(r["T"], t) for t in T_TABLE):
             note = {1.0: " (model as fitted)"}.get(round(r["T"], 6), "")
             lines.append(f"$T={r['T']:g}${note} & " + " & ".join(_pm(r[c], r[c + '_se']) for c in cols) + r" \\")
-    lines += [r"\bottomrule", r"\end{tabular}"]
-    if preview:
-        lines.insert(0, "% PREVIEW: scikit-learn stand-in models; regenerate after C2/C3 are merged.")
+    lines.append(r"\bottomrule")
+    lines += _preview_row(preview, 7) + [r"\end{tabular}"]
     (RESULTS_DIR / "c4_temperature.tex").write_text("\n".join(lines) + "\n")
     return rows
 

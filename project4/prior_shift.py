@@ -10,7 +10,8 @@ So the log-odds move by the constant
 
     delta = log(pi1_new / pi0_new) - log(pi1 / pi0),     p' = sigma(logit(p) + delta).
 
-Two equivalent ways to use it (both give exactly the same actions):
+Two equivalent ways to use it (they give the same actions; only a p lying
+exactly on a threshold can come out differently, through rounding):
     adjust_posterior(p, ...)  then bayes_action(p', L)      - correct the probability
     bayes_action_shifted(p, L, ...)                         - keep p, move the thresholds
 """
@@ -18,7 +19,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from .decision import DELIVER, INSPECT, SPAM, LossMatrix, thresholds
+from .decision import LossMatrix, band_action, thresholds
 
 
 def _check_prior(pi1, name):
@@ -41,6 +42,8 @@ def adjust_posterior(p, pi1_train: float, pi1_new: float):
     """
     r = np.exp(log_odds_shift(pi1_train, pi1_new))
     p = np.asarray(p, dtype=float)
+    if not np.all((p >= 0.0) & (p <= 1.0)):  # also catches NaN
+        raise ValueError("probabilities must lie in [0, 1]")
     return p * r / (p * r + (1.0 - p))
 
 
@@ -55,9 +58,4 @@ def shifted_thresholds(L: LossMatrix, pi1_train: float, pi1_new: float) -> tuple
 
 def bayes_action_shifted(p, L: LossMatrix, pi1_train: float, pi1_new: float):
     """Bayes action at the new prior, computed from the uncorrected p by moving thresholds."""
-    p = np.asarray(p, dtype=float)
-    t0, t1 = shifted_thresholds(L, pi1_train, pi1_new)
-    a = np.full(p.shape, INSPECT, dtype=int)
-    a[p <= t0] = DELIVER
-    a[p >= t1] = SPAM
-    return a
+    return band_action(p, *shifted_thresholds(L, pi1_train, pi1_new))

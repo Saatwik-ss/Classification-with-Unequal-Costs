@@ -54,15 +54,16 @@ email to the spam folder. The corrected filter holds it for inspection, because 
 traffic is spam the same evidence is less convincing.
 
 \paragraph{Logistic regression: only the intercept changes.}
-Logistic regression models $a(x) = w^\top\phi(x) = w_0 + \sum_{j\ge1} w_j\phi_j(x)$, with the constant
+In logistic regression $a(x) = w^\top\phi(x) = w_0 + \sum_{j\ge1} w_j\phi_j(x)$, with the constant
 feature $\phi_0=1$. Adding $\lshift$ to $a(x)$ is the same as replacing $w_0$ by $w_0+\lshift$ and keeping
-every other weight. The corrected model is still a logistic regression, and its decision boundaries move
-parallel to themselves.
+all the other weights. The corrected model is still a logistic regression, and in feature space its decision
+boundaries move parallel to themselves.
 
-Which $\pio$ did the model learn? The maximum-likelihood gradient is $\nabla E = \Phi^\top(y-t)$
-(lectures, Section~\ref{sec:models}). Its component for the constant feature is $\sum_n(y_n-t_n)$, and it is
-zero at the optimum, so the average predicted probability on the training data equals the training spam
-share $N_1/N$. We therefore use $\pio = N_1/N$. With an L2 penalty on $w_0$ this holds only approximately.
+Which $\pio$ did the model learn? In the lectures (Section~\ref{sec:models}) the gradient of the
+cross-entropy error is $\nabla E = \sum_n(\post_n-y_n)\,\phi(x_n)$, where $\post_n$ is the model's
+probability and $y_n$ the label. Its component for the constant feature is $\sum_n(\post_n-y_n)$, which is zero
+at the optimum. So $\frac1N\sum_n\post_n = N_1/N$: the average predicted probability on the training data
+equals the training spam share. We therefore use $\pio = N_1/N$. With an L2 penalty on $w_0$ this holds only approximately.
 
 \paragraph{Gaussian model: swap the priors.}
 For Gaussian classes with a shared covariance (lectures, Section~\ref{sec:models})
@@ -88,8 +89,8 @@ and the same for $\thz$ (and for $\tstar$ when there is no inspect band). So, wi
   \qquad k=0,1,
   \label{eq:t5-thresholds}
 \end{equation}
-applied to the uncorrected $\post$, gives exactly the same action for every email as the Bayes rule applied
-to $\post'$. In the example above ($r=1/9$) the thresholds move from $(0.30,\,0.97)$ to $(0.79,\,0.997)$.
+applied to the uncorrected $\post$, gives the same action for every email as the Bayes rule applied to
+$\post'$ (on a computer, an email lying exactly on a threshold can come out differently through rounding). In the example above ($r=1/9$) the thresholds move from $(0.30,\,0.97)$ to $(0.79,\,0.997)$.
 The filter now delivers anything with $\post\le0.79$ and sends to spam only above $0.997$.
 Figure~\ref{fig:t5} shows both views. Moving the thresholds leaves the model untouched. Correcting $\post$ is
 the better choice when the probabilities themselves are used, for example when they are shown to a user.
@@ -129,8 +130,10 @@ it can only do as well or worse. Section~\ref{sec:c5} measures how much worse.
 \begin{itemize}[itemsep=1pt,topsep=2pt]
   \item On Gaussian data, correcting the exact posterior at $\pio=0.5$ gives the exact posterior at each
         $\pion\in\{0.05,\dots,0.8\}$ to $10^{-9}$, for shared and for class-specific covariances.
-  \item The intercept form and the threshold form \eqref{eq:t5-thresholds} give identical results, the latter
-        on $100{,}000$ random probabilities, with and without an inspect band.
+  \item Fitting logistic regression on Gaussian data at two spam shares gives the same slopes and intercepts
+        that differ by $\lshift$.
+  \item The threshold form \eqref{eq:t5-thresholds} gives the same actions as correcting $\post$, on
+        $100{,}000$ random probabilities, with and without an inspect band.
   \item After a simulated shift, the corrected decisions coincide with the oracle decisions and have a lower
         realized loss than the uncorrected ones.
 \end{itemize}

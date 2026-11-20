@@ -67,7 +67,9 @@ def reliability_bins(y, p, n_bins: int = 10, strategy: str = "uniform") -> dict:
     strategy:
       "uniform"  - equal-width bins [0, 0.1), [0.1, 0.2), ..., [0.9, 1.0]
       "quantile" - equal-count bins: sort p and cut into n_bins groups of
-                   (almost) the same size, so no bin is empty or tiny.
+                   (almost) the same size.  Equal p values always share a bin
+                   (a cut that would split them moves past them), so a bin can
+                   be larger than N / n_bins and a later one smaller or empty.
 
     Returns a dict of arrays, one entry per bin:
       count     number of predictions in the bin
@@ -85,7 +87,12 @@ def reliability_bins(y, p, n_bins: int = 10, strategy: str = "uniform") -> dict:
         groups = [np.flatnonzero(idx == b) for b in range(n_bins)]
         lo, hi = edges[:-1], edges[1:]
     elif strategy == "quantile":
-        groups = np.array_split(np.argsort(p, kind="stable"), n_bins)
+        order = np.argsort(p, kind="stable")
+        ps = p[order]
+        sizes = [len(g) for g in np.array_split(order, n_bins)]
+        cuts = np.cumsum(sizes)[:-1]
+        cuts = np.where(cuts > 0, np.searchsorted(ps, ps[np.maximum(cuts - 1, 0)], side="right"), 0)
+        groups = np.split(order, cuts)
         lo = np.array([p[g].min() if g.size else np.nan for g in groups])
         hi = np.array([p[g].max() if g.size else np.nan for g in groups])
     else:
@@ -155,10 +162,11 @@ def platt_fit(y, p, l2: float = 1e-6, max_iter: int = 100, tol: float = 1e-10, e
             if f_new <= f + 1e-12:
                 break
             step = step / 2
-        converged = abs(f - f_new) <= tol * max(1.0, abs(f))
+        else:
+            break                       # no step lowers the objective: w is the minimum
         w, f = w_new, f_new
-        if converged:
-            break
+        if np.linalg.norm(grad) <= tol * max(1.0, abs(f)):
+            break                       # gradient is zero: converged
     return float(w[0]), float(w[1])
 
 

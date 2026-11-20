@@ -28,6 +28,9 @@ def test_no_shift_and_round_trip():
     assert adjust_posterior([0.0, 1.0], 0.5, 0.2).tolist() == [0.0, 1.0]
     with pytest.raises(ValueError):
         adjust_posterior(p, 0.0, 0.5)
+    for bad in ([1.5], [-0.1], [np.nan]):
+        with pytest.raises(ValueError):
+            adjust_posterior(bad, 0.5, 0.2)
 
 
 @pytest.mark.parametrize("pi1_new", [0.05, 0.1, 0.2, 0.4, 0.6, 0.8])
@@ -49,6 +52,22 @@ def test_logistic_regression_form_is_an_intercept_shift():
     w_new = w.copy()
     w_new[0] += delta                                                 # only w0 changes
     assert expit(Phi @ w_new) == pytest.approx(adjust_posterior(expit(Phi @ w), 0.39, 0.1))
+
+
+def test_refitting_at_a_new_prior_moves_only_the_intercept():
+    """Fit logistic regression on Gaussian data (shared covariance, so the model is
+    correct) at two spam shares: the slopes agree and the intercepts differ by delta."""
+    from sklearn.linear_model import LogisticRegression
+    mu0, mu1, S = [0.0, 0.0], [1.0, 0.5], [[1.0, 0.3], [0.3, 1.0]]
+    X, y = make_gaussian(400_000, 0.5, mu0, mu1, S, S, seed=5)
+    fits = {}
+    for pi1 in (0.5, 0.15):
+        Xs, ys = resample_to_prior(X, y, pi1, seed=6)
+        m = LogisticRegression(penalty=None, max_iter=1000).fit(Xs, ys)
+        fits[pi1] = (m.intercept_[0], m.coef_[0], ys.mean())
+    (b5, w5, s5), (b15, w15, s15) = fits[0.5], fits[0.15]
+    assert w15 == pytest.approx(w5, abs=0.03)
+    assert b15 - b5 == pytest.approx(log_odds_shift(s5, s15), abs=0.03)
 
 
 @pytest.mark.parametrize("c_insp", [0.05, 0.3, 0.9, 2.0])   # with and without an inspect band

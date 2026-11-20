@@ -69,6 +69,16 @@ def test_quantile_bins_have_equal_counts():
     assert np.all(b["lo"] <= b["mean_p"]) and np.all(b["mean_p"] <= b["hi"])
 
 
+def test_quantile_bins_keep_equal_p_together():
+    # four emails all at p = 0.5, half spam: perfectly calibrated, whatever their order
+    for y in ([1, 1, 0, 0], [0, 0, 1, 1], [1, 0, 1, 0]):
+        assert ece(y, [0.5] * 4, n_bins=2, strategy="quantile") == 0.0
+    p = np.array([0.1, 0.2, 0.2, 0.2, 0.2, 0.9])
+    b = reliability_bins(np.zeros(6), p, n_bins=3, strategy="quantile")
+    assert b["count"].tolist() == [5, 0, 1]           # the 0.2s are not split; middle bin empty
+    assert b["hi"][0] < b["lo"][2]
+
+
 def test_ece_small_for_calibrated_large_for_overconfident():
     y, p = calibrated_sample(200_000, seed=3)
     for strategy in ("uniform", "quantile"):
